@@ -65,19 +65,6 @@
       font-size: 1.2rem;
       margin-bottom: 2rem;
     }
-    .card {
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 15px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      color: #fff;
-      transition: transform 0.3s;
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-    }
-    .card:hover {
-      transform: translateY(-5px);
-    }
     .footer {
       text-align: center;
       padding: 1rem;
@@ -119,6 +106,19 @@
       font-size: 1rem;
       margin-top: 1rem;
     }
+    .export-btn {
+      background: #f0a500;
+      color: black;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .export-btn:hover {
+      background: #d98c00;
+    }
   </style>
 </head>
 <body>
@@ -145,25 +145,40 @@
       <span id="typed"></span>
     </div>
     <input type="text" id="searchInput" placeholder="🔎 Search..." onkeyup="filterData()">
-    <div id="sheetData" class="row"></div>
+    <button class="export-btn" onclick="downloadCSV()">⬇️ Export to CSV</button>
+    <div id="sheetData" class="table-responsive"></div>
     <canvas id="chart" width="400" height="200"></canvas>
-    <div class="footer">Made with ❤️ by Divy | Auto-updated from Google Sheet</div>
+    <div class="footer">Made with ❤️ by Divy | Auto-updated from Google Sheet | Last updated: <span id="lastUpdated">--:--</span></div>
   </div>
 </div>
 
 <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 <script>
-  AOS.init();
-  new Typed("#typed", {
-    strings: ["Live Data Viewer", "Google Sheet Dashboard", "Dynamic + Animated Webpage"],
-    typeSpeed: 50,
-    backSpeed: 30,
-    loop: true
-  });
-</script>
-<script>
   const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1sDAgIH4Hr5D5Ds6oMaXWcP4AN684b26Zdlh6sYTPD7mTmtKyBqitWJ6unrJynoiwDa_Kl22bWcrV/pub?output=csv";
   let allRows = [], previousLength = 0;
+
+  function checkLogin() {
+    const pwd = document.getElementById("loginPass").value;
+    if (pwd === "divy123") {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("dashboard").style.display = "grid";
+    } else {
+      alert("Wrong password");
+    }
+  }
+
+  function logout() {
+    location.reload();
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle("dark-mode");
+    localStorage.setItem("theme", document.body.classList.contains("dark-mode") ? "dark" : "light");
+  }
+
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark-mode");
+  }
 
   function fetchSheetData() {
     fetch(sheetURL)
@@ -174,22 +189,34 @@
         if (rows.length > previousLength) showToast();
         previousLength = rows.length;
         allRows = rows;
-        renderData(rows);
+        renderData([headers, ...rows]);
         renderChart(rows);
+        document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
       });
   }
 
   function renderData(rows) {
-    const html = rows.map((row, i) => `
-      <div class="col-md-6 col-lg-4" data-aos="fade-up" data-aos-delay="${i * 100}">
-        <div class="card">
-          <h4>${row[0]}</h4>
-          <p>${row[1]}</p>
-          <small>🕒 ${row[2]}</small>
-        </div>
-      </div>
-    `).join('');
-    document.getElementById("sheetData").innerHTML = html;
+    const table = document.createElement("table");
+    table.className = "table table-bordered table-striped table-hover text-white";
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
+
+    rows.forEach((row, index) => {
+      const tr = document.createElement("tr");
+      row.forEach(cell => {
+        const el = document.createElement(index === 0 ? "th" : "td");
+        el.textContent = cell;
+        tr.appendChild(el);
+      });
+      if (index === 0) thead.appendChild(tr);
+      else tbody.appendChild(tr);
+    });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    const container = document.getElementById("sheetData");
+    container.innerHTML = "";
+    container.appendChild(table);
   }
 
   function renderChart(rows) {
@@ -221,7 +248,7 @@
   function filterData() {
     const key = document.getElementById("searchInput").value.toLowerCase();
     const filtered = allRows.filter(r => r.join(' ').toLowerCase().includes(key));
-    renderData(filtered);
+    renderData([[...Array(filtered[0]?.length).keys()].map(i => `Column ${i+1}`), ...filtered]);
   }
 
   function showToast() {
@@ -230,23 +257,23 @@
     setTimeout(() => toast.style.display = "none", 3000);
   }
 
-  function toggleTheme() {
-    document.body.classList.toggle("dark-mode");
+  function downloadCSV() {
+    const rows = allRows;
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'dashboard_data.csv';
+    a.click();
   }
 
-  function checkLogin() {
-    const pwd = document.getElementById("loginPass").value;
-    if (pwd === "divy123") {
-      document.getElementById("loginScreen").style.display = "none";
-      document.getElementById("dashboard").style.display = "grid";
-    } else {
-      alert("Wrong password");
-    }
-  }
-
-  function logout() {
-    location.reload();
-  }
+  AOS.init();
+  new Typed("#typed", {
+    strings: ["Live Data Viewer", "Google Sheet Dashboard", "Dynamic + Animated Webpage"],
+    typeSpeed: 50,
+    backSpeed: 30,
+    loop: true
+  });
 
   fetchSheetData();
   setInterval(fetchSheetData, 2000);
